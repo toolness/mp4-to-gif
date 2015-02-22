@@ -104,12 +104,14 @@ ondrop = function(e) {
     console.log("ERROR", e);
   });
   video.addEventListener('canplay', function() {
-    var baseMsg = "Generating GIF\u2026 ";
+    var numFrames = Math.floor(video.duration * 10);
+    var baseMsg = "Generating " + numFrames + "-frame GIF\u2026 ";
     setStatus(baseMsg);
     gifshot.createGIF({
       progressCallback: function(p) {
         setStatus(baseMsg + Math.floor(p * 100) + '%');
       },
+      numFrames: numFrames,
       gifWidth: video.videoWidth,
       gifHeight: video.videoHeight,
       video: [url]
