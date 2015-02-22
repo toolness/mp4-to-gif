@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title></title>
+<p id="status">Drag an MP4 video file here, yo.</p>
+<p>
+  <small>
+    This tiny tool is made possible by <a href="http://yahoo.github.io/gifshot/">gifshot</a>.
+  </small>
+</p>
+<script src="gifshot.js"></script>
+<script>
+function setStatus(text) {
+  var status = document.getElementById('status');
+
+  status.textContent = text;
+}
+
+// http://stackoverflow.com/a/7261048  
+function strToArray(byteString) {
+  var buffer = new ArrayBuffer(byteString.length);
+  var bytes = new Uint8Array(buffer);
+
+  for (var i = 0; i < byteString.length; i++)
+    bytes[i] = byteString.charCodeAt(i);
+  return bytes;
+}
+
+// http://stackoverflow.com/a/7261048  
+function dataURLtoBuffer(url) {
+  // convert base64 to raw binary data held in a string
+  // doesn't handle URLEncoded DataURIs - see SO answer #6850276 for code
+  // that does this
+  var byteString = atob(url.split(',')[1]);
+
+  return strToArray(byteString).buffer;
+}
+
+function showImage(url, filename) {
+  var type = url.match(/^data:([^;^,]+)/)[1];
+  var buffer = dataURLtoBuffer(url);
+  var blob = new Blob([buffer], {type: type});
+  var a = document.createElement('a');
+  var img = document.createElement('img');
+
+  var ondragstart = function(e) {
+    var dt = e.dataTransfer;
+    dt.effectAllowed = 'copy';
+
+    // Chrome will use this to support dragging the image
+    // to the desktop. Unfortunately, there doesn't seem
+    // to be a way to do anything analogous in Firefox.
+    dt.setData('DownloadURL', [
+      type,
+      filename,
+      url
+    ].join(':'));    
+  };
+
+  url = URL.createObjectURL(blob);
+  img.setAttribute('src', url);
+  a.setAttribute('download', filename);
+  a.setAttribute('href', url);
+  a.appendChild(img);
+  document.body.appendChild(a);
+  img.addEventListener('dragstart', ondragstart);
+  a.addEventListener('dragstart', ondragstart);
+
+  // Hmm, gifshot seems to be putting a <video> in front of our linked
+  // image, so we'll add some CSS to force ours up front.
+  a.style.position = 'fixed';
+  a.style.zIndex = '10000';
+}
+
+ondragover = function(e) {
+  // Tell the browser that we'll handle a drop, no
+  // matter what it is.
+  e.preventDefault();
+};
+
+ondrop = function(e) {
+  // It seems like the default drop behavior of any
+  // browser is to navigate away from this page, so
+  // don't let that happen.
+  e.stopPropagation();
+  e.preventDefault();
+
+  var dt = e.dataTransfer;
+  var file = dt.files[0];
+
+  if (!(file && file.type == 'video/mp4'))
+    return;
+
+  var status = document.getElementById('status');
+  var url = URL.createObjectURL(file);
+  var video = document.createElement('video');
+  var source = document.createElement('source');
+  var newName = file.name.replace('.mp4', '.gif');
+
+  setStatus("Loading video\u2026");
+  source.setAttribute('src', url);
+  source.setAttribute('type', 'video/mp4; codecs="avc1.42E01E"');
+  source.addEventListener('error', function(e) {
+    setStatus("An error occurred loading the video.");
+    console.log("ERROR", e);
+  });
+  video.addEventListener('canplay', function() {
+    var baseMsg = "Generating GIF\u2026 ";
+    setStatus(baseMsg);
+    gifshot.createGIF({
+      progressCallback: function(p) {
+        setStatus(baseMsg + Math.floor(p * 100) + '%');
+      },
+      gifWidth: video.videoWidth,
+      gifHeight: video.videoHeight,
+      video: [url]
+    }, function(obj) {
+      if (obj.error) {
+        setStatus("An error occurred generating the GIF.");
+        console.log("ERROR", obj.error);
+      } else {
+        setStatus("Here is your GIF. Click or drag it to your desktop " +
+                  "to download it.");
+        showImage(obj.image, newName);
+      }
+    });
+  });
+  video.appendChild(source);
+};
+
+function testShowImage() {
+  // dot courtesy of http://en.wikipedia.org/wiki/Data_URI_scheme
+  var dot = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCA" +
+            "YAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9T" +
+            "XL0Y4OHwAAAABJRU5ErkJggg==";
+
+  onload = function() {
+    showImage(dot, 'dot.png');
+  };
+}
+
+if (location.search == '?testShowImage')
+  testShowImage();
+</script>
